@@ -73,6 +73,7 @@ def generate_amptools_cfg(
     basereactName,
     particles,
     header=help_header,
+    init_one_val=None,
     datareader="ROOTDataReader",
     add_amp_factor=None,
     append_to_cfg=None,
@@ -100,6 +101,7 @@ def generate_amptools_cfg(
         add_amp_factor (str): Additional factor to add to the amplitude
         append_to_cfg (str): Additional string args to append to the end of the cfg file
         append_to_decay (str): Additional string args to append to the decay factor
+        init_one_val (float, None): If not None, all amplitudes will be set to this value
 
     Returns:
         None, writes a file to cfgFileOutputName
@@ -130,28 +132,47 @@ def generate_amptools_cfg(
             parScale.setFixed(True)
 
         reactionInfo = cfgInfo.createReaction(reactName, particles)  # ReactionInfo*
+        # reactionInfo.setNormIntFile(f"{reactName}.ni", False)
 
         ###################################
         #### SET DATA, GEN, ACC, BKGND ####
         ###################################
 
-        reader_parts = datareader.split(" ")
-        reader_name = reader_parts[0]
+        required_srcs = set(["data", "genmc", "accmc"])
+        if len(bkgnds) > 0: 
+            required_srcs.add("bkgnd")
+        reader_names = {}
+        reader_argss = {}
+        if isinstance(datareader, str):
+            reader_parts = datareader.split(" ")
+            reader_name = reader_parts[0]
+            reader_args = reader_parts[1:] if len(reader_parts) > 1 else []
+            for required_src in required_srcs:
+                reader_names[required_src] = reader_name
+                reader_argss[required_src] = reader_args
+        if isinstance(datareader, dict):
+            assert set(datareader.keys()) == required_srcs, f"Datareader keys must be {required_srcs} instead of {set(datareader.keys())}"
+            for required_src, reader_parts in datareader.items():
+                reader_parts = reader_parts.split(" ")
+                reader_name = reader_parts[0]
+                reader_args = reader_parts[1:] if len(reader_parts) > 1 else []
+                reader_names[required_src] = reader_name
+                reader_argss[required_src] = reader_args
 
         data = datas[i]
-        data_args = [data] + (reader_parts[1:] if len(reader_parts) > 1 else [])  # append args
-        reactionInfo.setData(reader_name, data_args)
+        data_args = [data] + reader_argss["data"]  # append args
+        reactionInfo.setData(reader_names["data"], data_args.copy())
         gen = gens[i]
-        gen_args = [gen] + (reader_parts[1:] if len(reader_parts) > 1 else [])
-        reactionInfo.setGenMC(reader_name, gen_args)
+        gen_args = [gen] + reader_argss["genmc"]
+        reactionInfo.setGenMC(reader_names["genmc"], gen_args.copy())
         acc = accs[i]
-        acc_args = [acc] + (reader_parts[1:] if len(reader_parts) > 1 else [])
-        reactionInfo.setAccMC(reader_name, acc_args)
+        acc_args = [acc] + reader_argss["accmc"]
+        reactionInfo.setAccMC(reader_names["accmc"], acc_args.copy())
 
         if len(bkgnds) > 0:
             bkgnd = bkgnds[i]
-            bkgnd_args = [bkgnd] + (reader_parts[1:] if len(reader_parts) > 1 else [])
-            reactionInfo.setBkgnd(reader_name, bkgnd_args)
+            bkgnd_args = [bkgnd] + reader_argss["bkgnd"]
+            reactionInfo.setBkgnd(reader_names["bkgnd"], bkgnd_args.copy())
 
         #############################################
         #### DEFINE COHERENT SUMS AND AMPLITUDES ####
@@ -199,12 +220,17 @@ def generate_amptools_cfg(
     ### RANDOMLY INITALIZE AMPLITUDES ###
     #####################################
 
+    bAoV = False
+    if init_one_val is not None:
+        init_one_val = float(init_one_val)
+        bAoV = True
+
     for amp, lines in constraintMap.items():
-        value = random.uniform(0.0, 1.0)
+        value = init_one_val if bAoV else random.uniform(0.0, 1.0)
         if amp in realAmps:
             lines[0].setReal(True)
         else:
-            value += random.uniform(0.0, 1.0) * 1j
+            value += 1j * (init_one_val if bAoV else random.uniform(0.0, 1.0))
         if amp in fixedAmps:
             lines[0].setFixed(True)
         for line in lines[1:]:
@@ -327,7 +353,7 @@ def generate_amptools_cfg_from_dict(yaml_file):
                         _accs = [f"{data_folder}/{ftype}.root" for pol in used_pols]
                 else:
                     raise FileNotFoundError(f"File {source} does not exist.")
-            if not os.path.isfile(source) and ftype in ["data", "bkgnd"]:
+            if not os.path.isfile(source) and ftype in ["data"]:
                 raise FileNotFoundError(f"File {source} does not exist.")
 
     # These are placeholder locations for us to split_mass with
@@ -394,6 +420,7 @@ def generate_amptools_cfg_from_dict(yaml_file):
             add_amp_factor=yaml_file["add_amp_factor"].strip(),
             append_to_cfg=yaml_file["append_to_cfg"].strip(),
             append_to_decay=yaml_file["append_to_decay"].strip(),
+            init_one_val=yaml_file["init_one_val"],
         )
 
         generate_success = True
