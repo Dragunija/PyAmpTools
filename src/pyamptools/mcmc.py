@@ -469,7 +469,6 @@ class mcmcManager:
             plt.savefig(f"{corner_ofile}")
         else:
             return fig
-
 def _cli_mcmc():
     """Command line interface for performing mcmc fits"""
 
