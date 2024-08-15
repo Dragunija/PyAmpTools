@@ -33,6 +33,8 @@ def PlotGen(
     Returns:
         None, but saves drawn amplitufe weighted histograms to a root file.
     """
+    if __name__ != "__main__":
+        atiSetup.setup(globals())
 
     plotfile = TFile(ofile, "RECREATE")
     TH1.AddDirectory(False)

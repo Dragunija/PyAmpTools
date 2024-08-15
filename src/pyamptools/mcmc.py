@@ -11,7 +11,8 @@ import pandas as pd
 import yaml
 from pyamptools.utility.general import glob_sort_captured, safe_getsize
 from pyamptools.utility.load_parameters import LoadParameters, createMovesMixtureFromDict
-
+from pyamptools.utility.plotgen import PlotGen
+from pyamptools import atiSetup
 
 class mcmcManager:
     """
@@ -113,7 +114,6 @@ class mcmcManager:
         print(f"moves_mixture: {moves_mixture}")
         print(f"sampler_kwargs: {sampler_kwargs}")
         print(" ========================================================================= \n")
-
         ########## SETUP PARAMETERS ############
         ## AmpTools config files can be initialized to MLE values
         ##   this can be acheived by running a MLE fit with --seedfile
@@ -258,7 +258,7 @@ class mcmcManager:
             dump.to_feather(intensity_dump)
             print(f"\nMCMC intensity samples saved to {intensity_dump}")
             print(f"  shape: {dump.shape}\n")
-
+        
     def getIntensity(self, amplitudeMap, accCorrected=True):
         """
         Get intensity from a dictionary of a list of amplitudes
@@ -468,6 +468,29 @@ class mcmcManager:
             return fig
 
 
+    def draw_samples(self, ofile, ati_index = 0):
+        print("function call globals", globals())
+        plotfile = TFile(ofile, "RECREATE")
+        no_samples = 100
+        plots = []
+        ati = self.atis[ati_index]
+        idx = np.random.randint(self.samples.shape[0], size = no_samples)
+        samples = self.samples[idx,  self.paramPartitions[ati_index] : self.paramPartitions[ati_index + 1]]
+        keys = self.keys[self.paramPartitions[ati_index] : self.paramPartitions[ati_index + 1]]
+        name = keys[0].split("::")[0]
+        for i in range(len(samples)):
+            for j in range(samples.shape[1]):
+                ati.parameterManager()[keys[i]] = samples[i, j]
+            fitresults = FitResults(ati.configurationInfo(), [ati.intensityManager(name)], ati.likCalcMap(), ati.normIntMap(), 
+                    ati.minuitMinimizationManager(), ati.parameterManager())
+            plots.append(PlotGen(fitresults, ofile, save = False))
+        stack = THStack("MVecPs_stack", "")
+        for hist_sample in plots:
+            stack.Add(hist_sample["MVecPsacc"])
+        stack.Write()
+        plotfile.Close()
+
+
 def _cli_mcmc():
     """Command line interface for performing mcmc fits"""
 
@@ -520,10 +543,9 @@ def _cli_mcmc():
         assert os.path.exists(cfgfile), "Config file does not exist at specified path"
 
     ################### LOAD LIBRARIES ##################
-    from pyamptools import atiSetup
 
     USE_MPI, USE_GPU, RANK_MPI = atiSetup.setup(globals(), args.accelerator)
-
+    print("main globals", globals())
     ############## LOAD CONFIGURATION FILE #############
     parsers = [ConfigFileParser(cfgfile) for cfgfile in cfgfiles]
     cfgInfos = [parser.getConfigurationInfo() for parser in parsers]  # List of ConfigurationInfo
@@ -592,7 +614,8 @@ def _cli_mcmc():
             params_dict=params_dict,
             moves_mixture=moves_mixture,
         )
-
+        sample_ofile = "/work/halld/home/ddarulis/etaphi/test_samples_file.root"
+        mcmcMgr.draw_samples(sample_ofile)
         mcmcMgr.draw_corner(f"{corner_ofile}", format=corner_format)
 
         print(f"Fit time: {mcmcMgr.elapsed_fit_time} seconds")

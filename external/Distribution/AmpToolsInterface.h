@@ -172,6 +172,10 @@ public:
   */
   map< string, NormIntInterface* > normIntMap() const { return m_normIntMap; }
 
+  /** Return a map to all Likelihood Calculator interfaces.
+   */
+  map< string, LikelihoodCalculator* > likCalcMap() const { return m_likCalcMap; }
+
   /** Pointer to an IntensityManager.  There is one for each defined reaction.
    *  (Most applications will not likely need to access these.)
    */

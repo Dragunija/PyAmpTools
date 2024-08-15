@@ -23,6 +23,7 @@ fi
 #    personal working directory but it isn't modified much anymore)
 
 hostname=$(hostname)
+USE_DEFAULT_PYAMPTOOLS_LIBS="FALSE"
 if [[ "$hostname" == *"jlab.org"* ]]; then
 
     echo "Hostname contains 'jlab.org'. Loading default JLab environment..."
@@ -40,7 +41,8 @@ if [[ "$hostname" == *"jlab.org"* ]]; then
 
     # You could build the external libraries from source but since you are
     # on the JLab system you can also just use the pre-built libraries
-    if [[ ! "$PYAMPTOOLS_HOME" == "$default_env" ]]; then
+
+    if [[ ! "$PYAMPTOOLS_HOME" == "$default_env" && "$USE_DEFAULT_PYAMPTOOLS_LIBS" == "TRUE" ]]; then
         mv $PYAMPTOOLS_HOME/external $PYAMPTOOLS_HOME/.external # hide current external directory
         ln -s "$default_env/external" $PYAMPTOOLS_HOME # link over the pre-built libraries
     fi

@@ -46,6 +46,20 @@ def vps_amp_name(refl, J, M, l):
     _refl = "+" if refl == 1 else "-"
     return f"{J}{spectroscopic_map[l]}{M_sign}{abs(M)}{_refl}"
 
+def vps_amp_name_conv(refl, J, M, l):
+    if J < 0:
+        raise ValueError("vps_amp_name: J must be greater than or equal to 0!")
+    if M < -J or M > J:
+        raise ValueError("vps_amp_name: M must be between -J and J!")
+    if l < abs(J) - 1:
+        raise ValueError("vps_amp_name: l must be greater than or equal to 0!")
+    if l > lmax:
+        raise ValueError(f"vps_amp_name: l must be less than or equal to {lmax}!")
+    M_sign = "p" if M >= 0 else "m"
+    m_string = "{abs{M}" if M!=1 else ""
+    _refl = "p" if refl == 1 else "m"
+    parity = "p" if ((-1)**l) == 1 else "m"
+    return f"{J}{parity}{M_sign}{m_string}{spectroscopic_map[l]}"
 
 converter = {}  # i.e. {'Sp0+': [1, 0, 0]}
 prettyLabels = {}  # i.e. {'Sp0+': '$S_{0}^{+}$'}

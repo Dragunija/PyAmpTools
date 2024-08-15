@@ -7,6 +7,7 @@ import ROOT
 from pyamptools import atiSetup
 from pyamptools.utility.general import converter, example_vps_names, example_zlm_names, load_yaml, vps_amp_name, zlm_amp_name
 
+from jlab_utils.python_scripts.get_vecps_plots import parse_wave_string
 ############################################################################
 # This script generates AmpTools configuration files with knobs/flags to
 # append additional information to the generated file
@@ -411,7 +412,103 @@ def generate_amptools_cfg_from_dict(yaml_file):
 
     return result, generate_success
 
+def generate_vecps_cfg(fit_name, reader_type, data_file, acc_file, gen_file, waves, real, fmt = "cartesian"):
+    sep = "::"
+    amp_type = "Vec_ps_refl"
+    signs = ["PosSign", "NegSign"]
+    realities = "Real", "Im"]
+    sum_names = [reality + sign for reality in realities for sign in signs]
+    reader_args = None
+    reaction = f"{fit_name} Beam Proton Eta K+ K-"
+    sums = [f"sum {temp}" for sum in sum_names]
+    gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
+    acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
+    data_line = f"data {fit_name} {reader_type} {data_file} {reader_args}"
+    pol_angle = 0
+    pol_val = 0.4
+    cfg = "\n".join([fit_name, reaction_name, sums, gen_line, acc_line, data_line])
+    for i, wave in enumerate(waves):
+        quantum_numbers = parse_wave_string(wave)
+        for _sum in sum_names:
+            wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegsign") else ""
+            reality = "+1" if "Re" in _sum else "-1"
+            sign = "+1" if "PosSign" in _sum else "-1"
+            amplitude = f"{fit_name}{sep}{_sum}{sep}{wave}"
+            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {quantum_numbers['m']} {quantum_numbers['l']} {pol_angle} {pol_val} {reality} {sign} dalitz"  
+            initialize = f"initialize {amplitude} {fmt} PAR1 PAR2 {wave_real}"
+            cfg += "\n".join([amplitude, amplitude_decl, initialize])
+            
+        constrain = [f"constrain {fit_name} {sum_names[0]} {wave} {fit_name} {sum_names[2]} {wave}", f"constrain {fit_name} {sum_name[1]} {wave} {fit_name} {sum_names[3]} {wave}"]
+        "\n".join([cfg, constrain])
+    return cfg
 
+
+
+def generate_etaphi_hybrid_cfg(fit_name, reader_type, data_file, acc_file, gen_file, piecewise_waves, bws, bw_bounds, bw_real, no_bins): 
+    sep = "::"
+    amp_type = "Vec_ps_refl"
+    signs = ["PosSign", "NegSign"]
+    realities = "Real", "Im"]
+    sum_names = [reality + sign for reality in realities for sign in signs]
+    reader_args = None
+    reaction = f"{fit_name} Beam Proton Eta K+ K-"
+    sums = [f"sum {temp}" for sum in sum_names]
+    gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
+    acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
+    data_line = f"data {fit_name} {reader_type} {data_file} {reader_args}"
+    pol_angle = 0
+    pol_val = 0.4
+    cfg = "\n".join([fit_name, reaction_name, sums, gen_line, acc_line, data_line])
+    for i, wave in enumerate(piecewise_waves):
+        quantum_numbers = parse_wave_string(wave)
+        par_name_pos = []
+        par_name_neg = []
+        for j in range(len(no_bins)):
+            for r in ["Re", "Im"]:
+                for s in ["Pos", "Neg"]:
+                    par_name = f"pcwsBin_{j}{r}{s}{quantum_numbers['l]}{quantum_numbers['m']}"
+                    line = f"parameter par_name PAR{i*j}"
+                    if s == "Pos":
+                        par_name_pos.append(par_name)
+                    else:
+                        par_name_neg.append(par_name)
+
+        for _sum in sum_names:
+            suffix = f"Neg{quantum_numbers['l']}{quantum_numbers['m']}" if "Neg" in _sum else f"Pos{quantum_numbers['l']}{quantum_numbers['m']}"
+            amplitude = f"amplitude {fit_name}{sep}{_sum}{sep}{wave} Piecwise {low_edge} {hi_edge} 12 234 {suffix} ReIm "
+            if PosSign in _sum:
+                for par in par_name_pos:
+                    amplitude += "[{par}] "
+            else:
+                for par in par_name_neg:
+                    amplitude += "[{par}] "
+            amplitude += "\n"
+
+            wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegsign") else ""
+            reality = "+1" if "Re" in _sum else "-1"
+            sign = "+1" if "PosSign" in _sum else "-1"
+            amplitude_ang = f"{fit_name}{sep}{_sum}{sep}{wave}"
+            amplitude_ang_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {quantum_numbers['m']} {quantum_numbers['l']} {pol_angle} {pol_val} {reality} {sign} dalitz"  
+            if "1p0s" in amplitude_ang:
+                initialize = f"initialize {amplitude_ang} {fmt} 1 0 real fixed"
+            else:
+                initialize = f"initialize {amplitude_ang} {fmt} 1 1 fixed"
+            cfg += "\n".join[(amplitude, amplitude_ang, amplitude_ang_decl, initialize])
+
+
+    for i, bw in enumerate(bws):
+        quantum_numbers = parse_wave_string(bw)
+        bw_mass = 1680 if quantum_numbers['l'] == 'p' else 1850
+        widths = {1680 : 0.15, 1850 : 0.87}
+        width_bounds = {1680 : (0.1, 0.2), 1850 : (0.064, 0.115)}
+        if bw_bounds[i] == "True":
+            wave_bounds = f"{widths[bw_mass]} bounded {str(width_bounds[bw_mass][0])} {str(width_bounds[bw_mass][1])}"
+        else:
+            wave_bounds = "fixed"
+        for _sum in sum_name:
+            amplitude = f"amplitude {fit_name}{sep}{_sum}{bw} BreitWigner {bw_mass} {wave_bounds} 1 2 34"  
+
+            
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate an AmpTools configuration file for a Zlm fit")
     parser.add_argument("yaml_name", type=str, default="conf/configuration.yaml", help="Path a configuration yaml file")

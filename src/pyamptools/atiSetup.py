@@ -112,6 +112,7 @@ def set_aliases(called_globals, USE_MPI, USE_GPU):
         "PhaseOffset": ROOT.PhaseOffset,
         "TwoPiAngles": ROOT.TwoPiAngles,
         "Uniform": ROOT.Uniform,
+        "LikelihoodCalculator": ROOT.LikelihoodCalculator,
         "ParameterManager": ROOT.ParameterManager,
         "MinuitMinimizationManager": ROOT.MinuitMinimizationManager,
         ############## DataReader RELATED ##############
@@ -123,6 +124,7 @@ def set_aliases(called_globals, USE_MPI, USE_GPU):
         ########### PLOTTER / RESULTS RELATED ###########
         "FitResults": ROOT.FitResults,
         "EtaPiPlotGenerator": ROOT.EtaPiPlotGenerator,
+        "VecPsPlotGenerator": ROOT.VecPsPlotGenerator,
         "PlotGenerator": ROOT.PlotGenerator,
         "TH1": ROOT.TH1,
         "TFile": ROOT.TFile,
