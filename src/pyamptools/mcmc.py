@@ -355,7 +355,10 @@ class mcmcManager:
             intensities[:, i] = samples_intensity
 
         return intensities
-
+    def sample_draws(intensities, ati_index, amplitudeMap, no_samples = 100, accCorrected = False):
+        rng = np.random.default_rng()
+        sampled_intensities = rng.choice(intensities, no_samples, replace = False)
+        
     def getAmplitudeMaps(self):
         """
         Each amplitude map is a dictionary for a UNIQUE amplitude name matching to a list of full name amptools amplitudes
@@ -466,30 +469,6 @@ class mcmcManager:
             plt.savefig(f"{corner_ofile}")
         else:
             return fig
-
-
-    def draw_samples(self, ofile, ati_index = 0):
-        print("function call globals", globals())
-        plotfile = TFile(ofile, "RECREATE")
-        no_samples = 100
-        plots = []
-        ati = self.atis[ati_index]
-        idx = np.random.randint(self.samples.shape[0], size = no_samples)
-        samples = self.samples[idx,  self.paramPartitions[ati_index] : self.paramPartitions[ati_index + 1]]
-        keys = self.keys[self.paramPartitions[ati_index] : self.paramPartitions[ati_index + 1]]
-        name = keys[0].split("::")[0]
-        for i in range(len(samples)):
-            for j in range(samples.shape[1]):
-                ati.parameterManager()[keys[i]] = samples[i, j]
-            fitresults = FitResults(ati.configurationInfo(), [ati.intensityManager(name)], ati.likCalcMap(), ati.normIntMap(), 
-                    ati.minuitMinimizationManager(), ati.parameterManager())
-            plots.append(PlotGen(fitresults, ofile, save = False))
-        stack = THStack("MVecPs_stack", "")
-        for hist_sample in plots:
-            stack.Add(hist_sample["MVecPsacc"])
-        stack.Write()
-        plotfile.Close()
-
 
 def _cli_mcmc():
     """Command line interface for performing mcmc fits"""
