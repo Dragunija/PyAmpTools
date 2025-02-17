@@ -2,6 +2,7 @@ import argparse
 import array
 import os
 import random
+import re
 
 import ROOT
 from pyamptools import atiSetup
@@ -448,7 +449,138 @@ def generate_amptools_cfg_from_dict(yaml_file):
 
     return result, generate_success
 
-def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, phase_constraint, fmt = "cartesian"):
+def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, params, phase_constraint, fmt = "cartesian"):
+    phase_constrained_waves = {}
+    phase_constrained_waves_mag = []
+    if phase_constraint == "m_con":
+        phase_constrained_waves = {
+            "3mpf" : "3f_posm_par",
+            "3mp2f" : "3f_posm_par",
+            "3mp3f" : "3f_posm_par",
+            "3mmf" : "3f_negm_par",
+            "3mm2f" : "3f_negm_par",
+            "3mm3f" : "3f_negm_par",
+            }
+        phase_constrained_waves_mag = {
+            "3mpf" : "3f_posm_mag_par",
+            "3mp2f" : "3f_posm_mag_par",
+            "3mp3f": "3f_posm_mag_par",
+            "3mmf" : "3f_negm_mag_par",
+            "3mm2f" : "3f_negm_mag_par",
+            "3mm3f" : "3f_negm_mag_par"
+                }
+        phase_pars = {par for par in phase_constrained_waves.values()}
+        phase_mag_pars = {par for par in phase_constrained_waves_mag.values()}
+
+    if phase_constraint == "l_con":
+        phase_constrained_waves = {
+            "1pps" : "1s_par",
+            "1p0s": "1s_par",
+            "1pms" : "1s_par",
+            "1mmp" : "1p_par",
+            "1m0p" : "1p_par",
+            "1mpp" : "1p_par",
+			"2pm2p" : "2p_par",
+			"2pmp" : "2p_par",
+			"2p0p" : "2p_par",
+			"2ppp" : "2p_par",
+			"2pp2p" : "2p_par",
+			"2mm2d" :"2d_par",
+			"2mmd" : "2d_par",
+			"2m0d" : "2d_par",
+			"2mpd" : "2d_par",
+			"2mp2d" : "2d_par",
+			"2mm2f" : "2f_par",
+			"2mmf" : "2f_par",
+			"2m0f" : "2f_par",
+			"2mpf" : "2f_par",
+			"2mp2f" : "2f_par",
+            "3mm3f" : "3f_par",
+            "3mm2f" : "3f_par", 
+            "3mmf" : "3f_par",
+            "3m0f" : "3f_par",
+            "3mpf" : "3f_par",
+            "3mp2f" : "3f_par",
+            "3mp3f" : "3f_par"
+                }
+        phase_constrained_waves_mag = {
+            "1pps" : "1s_mag_par",
+            "1p0s": "1s_mag_par",
+            "1pms" : "1s_mag_par",
+            "1mmp" : "1p_mag_par",
+            "1m0p" : "1p_mag_par",
+            "1mpp" : "1p_mag_par",
+			"2pm2p" : "2p_mag_par",
+			"2pmp" : "2p_mag_par",
+			"2p0p" : "2p_mag_par",
+			"2ppp" : "2p_mag_par",
+			"2pp2p" : "2p_mag_par",
+			"2mm2d" :"2d_mag_par",
+			"2mmd" : "2d_mag_par",
+			"2m0d" : "2d_mag_par",
+			"2mpd" : "2d_mag_par",
+			"2mp2d" : "2d_mag_par",
+			"2mm2f" : "2f_mag_par",
+			"2mmf" : "2f_mag_par",
+			"2m0f" : "2f_mag_par",
+			"2mpf" : "2f_mag_par",
+			"2mp2f" : "2f_mag_par",
+            "3mm3f" : "3f_mag_par",
+            "3mm2f" : "3f_mag_par", 
+            "3mmf" : "3f_mag_par",
+            "3m0f" : "3f_mag_par",
+            "3mpf" : "3f_mag_par",
+            "3mp2f" : "3f_mag_par",
+            "3mp3f" : "3f_mag_par"
+                }
+        phase_pars = {par for par in phase_constrained_waves.values()}
+        phase_mag_pars = {par for par in phase_constrained_waves_mag.values()}
+    #print(phase_constraint)
+    #print(phase_constrained_waves)
+    sep = "::"
+    amp_type = "Vec_ps_refl"
+    signs = ["PosSign", "NegSign"]
+    realities = ["Real", "Imag"]
+    sum_names = [reality + sign for reality in realities for sign in signs]
+    reaction = f"{fit_name} Beam Proton Eta K+ K-"
+    sums = [f"sum {fit_name} {temp}" for temp in sum_names]
+    TEMstring = f"define TEMstring {reader_args}"
+    gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
+    acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
+    data_line = f"data {fit_name} {reader_type} {data_file} {reader_args}"
+    used_phasediff_pars = set()
+    cfg = "\n".join([help_header, f"fit {fit_name}", f"reaction {reaction}", "\n".join(sums), TEMstring, gen_line, acc_line, data_line, "\n"])
+    for i, wave in enumerate(waves):
+        if wave in phase_constrained_waves and phase_constrained_waves[wave] not in used_phasediff_pars:
+            phase_par = f"parameter {phase_constrained_waves[wave]} 3.14"
+            phase_mag_par = f"parameter {phase_constrained_waves_mag[wave]} 1 fixed"
+            used_phasediff_pars.add(phase_constrained_waves[wave])
+            used_phasediff_pars.add(phase_constrained_waves[wave])
+            cfg += "\n".join([phase_par, phase_mag_par, "\n" ])
+        #print(wave)
+        quantum_numbers = parse_wave_string(wave)
+        for _sum in sum_names:
+            wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegSign") else ""
+            pars = f"{params[i]}" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
+            reality = "+1" if "Re" in _sum else "-1"
+            sign = "+1" if "PosSign" in _sum else "-1"
+            #pars = "100 100" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
+            amplitude = f"{fit_name}{sep}{_sum}{sep}{wave}"
+            phasecon_ampl_decl = ""
+            if phase_constraint and wave in phase_constrained_waves:
+                #print("inside if statement")
+                phasecon_ampl_decl = f"amplitude {amplitude} ComplexCoeff [{phase_constrained_waves_mag[wave]}] [{phase_constrained_waves[wave]}] MagPhi"
+#            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign} {pol_angle} {pol_val} dalitz"  
+            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign}"  
+            initialize = f"initialize {amplitude} {fmt} {pars} {wave_real}"
+            #print(phasecon_ampl_decl)
+            cfg += "\n".join([phasecon_ampl_decl, amplitude_decl, initialize, "\n"])
+            
+        constrain = "\n".join([f"constrain {fit_name} {sum_names[0]} {wave} {fit_name} {sum_names[2]} {wave}", f"constrain {fit_name} {sum_names[1]} {wave} {fit_name} {sum_names[3]} {wave}", "\n"])
+        cfg += constrain
+    return cfg
+
+def generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, wave_params, phase_constraint, bws, bw_widths, bound_mass, bound_width, plotting, fmt = "cartesian"):
     phase_constrained_waves = {}
     phase_constrained_waves_mag = []
     if phase_constraint == "m_con":
@@ -517,10 +649,38 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
     gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
     acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
     data_line = f"data {fit_name} {reader_type} {data_file} {reader_args}"
-    pol_angle = 0
-    pol_val = 0.4
+    vec_data = f"define vector 1.022 0.0046"
+    mass_unc = {'p' : (1.660, 1.700), 'f': (1.847, 1.861)}
+    width_unc=  {'p' : (0.1, 0.2) , 'f' : (0.064, 0.115)}
+    fixed = " fixed" if plotting else ""
     used_phasediff_pars = set()
-    cfg = "\n".join([help_header, f"fit {fit_name}", f"reaction {reaction}", "\n".join(sums), TEMstring, gen_line, acc_line, data_line, "\n"])
+    included_bws = set()
+    scale = "parameter intensity_scale 1.0" if plotting else ""
+
+    cfg = "\n".join([help_header, f"fit {fit_name}", scale, f"reaction {reaction}", "\n".join(sums), TEMstring, gen_line, acc_line, data_line, vec_data, "\n"])
+    for i, (bw, width) in enumerate(zip(bws, bw_widths)):
+        quantum_numbers = parse_wave_string(bw)
+        if quantum_numbers['l'] == 'p':
+            bw_mass = 1.680
+        if quantum_numbers['l'] == 'f':
+            bw_mass = 1.854
+        bw_name = f"phi{str(int(bw_mass*1000))}"
+        bw_def = f"define {bw_name} [{bw_name}_mass] [{bw_name}_width]"
+        if bound_width == "True":
+            width_bounds = f"parameter {bw_name}_width {width} bounded {str(width_unc[quantum_numbers['l'][0]])} {str(width_unc[quantum_numbers['l'][1]])}"
+        else:
+            width_bounds = f"parameter {bw_name}_width {width} fixed"
+        if bound_mass == "True":
+            mass_bounds = f"parameter {bw_name}_mass {bw_mass} bounded {str(mass_unc[quantum_numbers['l'][0]])} {str(mass_unc[quantum_numbers['l'][1]])}"
+        else:
+            mass_bounds = f"parameter {bw_name}_mass {bw_mass} fixed"
+        if bw_name not in included_bws:
+            cfg += "\n".join([mass_bounds, width_bounds, bw_def, "\n"])
+        included_bws.add(bw_name)
+        for _sum in sum_names:
+            amplitude = f"amplitude {fit_name}{sep}{_sum}{sep}{bw} BreitWigner {bw_name} 1 2 34"   
+            cfg += "".join([amplitude, "\n"])
+    
     for i, wave in enumerate(waves):
         if wave in phase_constrained_waves and phase_constrained_waves[wave] not in used_phasediff_pars:
             phase_par = f"parameter {phase_constrained_waves[wave]} 3.14"
@@ -534,23 +694,24 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
             wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegSign") else ""
             reality = "+1" if "Re" in _sum else "-1"
             sign = "+1" if "PosSign" in _sum else "-1"
-            pars = "100 100" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
+            pars = f"{wave_params[i]}" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
             amplitude = f"{fit_name}{sep}{_sum}{sep}{wave}"
             phasecon_ampl_decl = ""
             if phase_constraint and wave in phase_constrained_waves:
                 #print("inside if statement")
                 phasecon_ampl_decl = f"amplitude {amplitude} ComplexCoeff [{phase_constrained_waves_mag[wave]}] [{phase_constrained_waves[wave]}] MagPhi"
-            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign} {pol_angle} {pol_val} dalitz"  
-            initialize = f"initialize {amplitude} {fmt} {pars} {wave_real}"
+#            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign} {pol_angle} {pol_val} dalitz"  
+            amplitude_decl = f"amplitude {amplitude} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign}"  
+            scale = f"scale {amplitude} [intensity_scale]" if plotting else ""
+            initialize = f"initialize {amplitude} {fmt} {pars} {wave_real}{fixed}"
             #print(phasecon_ampl_decl)
-            cfg += "\n".join([phasecon_ampl_decl, amplitude_decl, initialize, "\n"])
-            
+            cfg += "\n".join([phasecon_ampl_decl, amplitude_decl, scale, initialize, "\n"])
+
         constrain = "\n".join([f"constrain {fit_name} {sum_names[0]} {wave} {fit_name} {sum_names[2]} {wave}", f"constrain {fit_name} {sum_names[1]} {wave} {fit_name} {sum_names[3]} {wave}", "\n"])
         cfg += constrain
     return cfg
 
-
-def generate_vecps_cfg_yaml(yaml):
+def generate_vecps_cfg_yaml(yaml, iotest, bin_root):
     fit_name = yaml["fit_name"]
     reaction_name = yaml["reaction_name"]
     reader_type = yaml["reader_type"]
@@ -566,55 +727,85 @@ def generate_vecps_cfg_yaml(yaml):
     do_binning = yaml["do_binning"]
     do_fitting = yaml["do_fitting"]
     do_plotting = yaml["do_plotting"]
+    include_isowave = yaml["do_isowave"]
+    num_fits = yaml["num_fits"]
+    if iotest:
+        bws = yaml["bws"]
+        bw_widths = yaml["bw_widths"]
+        bound_mass = yaml["bound_mass"]
+        bound_width = yaml["bound_width"]
 
     
     #if len(fit_name) == 1:
      #   fit_name = fit_name[0]
     if len(reaction_name) == 1:
         reaction_name = reaction_name[0]
+    if len(data_file) == 1:
+        data_file = data_file[0]
+    if len(accmc_file) == 1:
+        accmc_file = accmc_file[0]
+    if len(genmc_file) == 1:
+        genmc_file = genmc_file[0]
+    if len(fit_name) == 1:
+        fit_name = fit_name[0]
     if len(reader_type) == 1 :
         reader_type = reader_type[0]
     if len(reader_args) == 1:
         reader_args = reader_args[0]
+    if len(waves) >= 1:
+        params = waves[1]["params"]
+        waves = waves[0]["waveset"]
+    if len(real_waves) == 1:
+        real_waves = real_waves[0]
+    if iotest:
+        if len(bws) == 1:
+            bws = bws[0]
+        if len(bw_widths) == 1:
+            bw_widths = bw_widths[0]
+    else:
+        bws = None
+        bw_widths = None
 
     cfgs = []
-    
-    for fit, data, accmc, genmc, waveset, realset in zip(fit_name, data_file, accmc_file, genmc_file, waves, real_waves):
-        cfg = generate_vecps_cfg(fit, reaction_name, help_header, reader_type, reader_args, data, accmc, genmc, waveset["waveset"], realset["realset"], phase_constraint, wave_format)
-        cfgs.append(cfg)
-        with open(f"{output_directory}/{fit}.cfg", 'w') as cfg_file:
-            cfg_file.write(cfg)
-        if do_binning:
-            if os.path.isdir(f"{output_directory}/{fit}/") is False:
-                os.mkdir(f"{output_directory}/{fit}/")
-            make_amptools_bins._main(
-                        SimpleNamespace(**{"config_path" : f"{output_directory}/{fit}.cfg", 
-                            "fit_name" : fit,
-                            "data_path" : data,
-                            "accmc_path" : accmc,
-                            "genmc_path" : genmc,
+    if iotest:
+        cfg = generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, accmc_file, genmc_file, waves, real_waves["realset"], params, phase_constraint, bws["bw_set"], bw_widths["widths"], bound_mass, bound_width, do_plotting, wave_format)
+    else:
+        cfg = generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, accmc_file, genmc_file, waves, real_waves["realset"], params, phase_constraint, wave_format)
+    cfgs.append(cfg)
+    with open(f"{output_directory}/{fit_name}.cfg", 'w') as cfg_file:
+        cfg_file.write(cfg)
+    if do_binning:
+        if os.path.isdir(f"{output_directory}/{fit_name}/") is False:
+            os.mkdir(f"{output_directory}/{fit_name}/")
+        make_amptools_bins._main(
+                        SimpleNamespace(**{"config_path" : f"{output_directory}/{fit_name}.cfg", 
+                            "fit_name" : fit_name,
+                            "data_path" : data_file,
+                            "accmc_path" : accmc_file,
+                            "genmc_path" : genmc_file,
                             "mass_min" : 1.5,
                             "mass_max" : 2.5,
                             "n_bins" : 25,
                             "t_min" : 0,
-                            "t_max" : 2,
+                            "t_max" : 1,
                             "energy_min" : 3.0,
                             "energy_max" : 11.6,
+							"bin_root" : bin_root,
                             "bootstrap" : False
                         }))
-            if do_fitting:
+        if do_fitting:
                 run_amptools.main(
-                        SimpleNamespace(**{"bin_path" : f"{output_directory}/{fit}/bins.txt",
-                            "fit_name" : fit,
-                            "num_fits" : 1,
+                        SimpleNamespace(**{"bin_path" : f"{output_directory}/{fit_name}/bins.txt",
+                            "fit_name" : fit_name,
+                            "num_fits" : num_fits,
                             "fit_path": "/work/halld/home/ddarulis/etaphi/results/",
                             "num_process" : 12}
                             )
                         )
                 get_best_lik.main(
-                        SimpleNamespace(**{"path" : output_directory}))
-            if do_plotting:
-                files = [f for f in os.listdir(f"{output_directory}") if re.match(rf"{fit}_bin_(0-9){1,2}.fit", f)]
+                        SimpleNamespace(**{"path" : output_directory, "plot_n_best_fits" : False, "combine_n_best_fits" : False, "compare_models" : False, "path2": None}))
+        if do_plotting:
+                files = [f for f in os.listdir(f"{output_directory}") if re.match(rf"{fit_name}_bin_(0-9){1,2}.fit", f)]
                 plot_fits.main(
                         SimpleNamespace(**{"files" : files,
                             "num_process" : len(files)
@@ -638,8 +829,6 @@ def generate_etaphi_hybrid_cfg(fit_name, reaction_name, help_header, reader_type
     gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
     acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
     data_line = f"data {fit_name} {reader_type} {data_file} {reader_args}"
-    pol_angle = 0
-    pol_val = 0.4
     lo_edge = 1.5
     hi_edge = 1.98
     cfg = "\n".join([f"fit {fit_name}", f"reaction {reaction}", "\n".join(sums), gen_line, acc_line, data_line, "\n"])
@@ -690,7 +879,7 @@ def generate_etaphi_hybrid_cfg(fit_name, reaction_name, help_header, reader_type
             reality = "+1" if "Re" in _sum else "-1"
             sign = "+1" if "PosSign" in _sum else "-1"
             amplitude_ang = f"{fit_name}{sep}{_sum}{sep}{wave}"
-            amplitude_ang_decl = f"amplitude {amplitude_ang} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign} {pol_angle} {pol_val}  dalitz"  
+            amplitude_ang_decl = f"amplitude {amplitude_ang} {amp_type} {quantum_numbers['j']} {m_names(quantum_numbers['m'])} {l_to_num(quantum_numbers['l'])} {reality} {sign}"  
             if "1p0s" in amplitude_ang:
                 initialize = f"initialize {amplitude_ang} {fmt} 1 0 real fixed"
             else:
@@ -708,6 +897,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate an AmpTools configuration file for a Zlm fit")
     parser.add_argument("--yaml_name", type=str, default="/work/halld/home/ddarulis/etaphi/MC/PWA/fitting/automated_configs/yaml_files/test.yaml", help="Path a configuration yaml file")
     parser.add_argument("--test", type=bool, default=False, help="Test configuration generating functions")
+    parser.add_argument("--iotest", type=bool, default=False, help="Generate configuration files for IO tests")
+    parser.add_argument("--bin_root", type=bool, default=False, help="Bin root files.")
     args = parser.parse_args()
     if args.test:
         #result = generate_vecps_cfg("test_fit", "etaphi", help_header, "ROOTDataReaderTEM", "-1 0.0 1.5 1.54", "/work/home/halld/ddarulis/etaphi/MC/PWA/DataWeightedTree_2024_06_filtered.root", "/work/halld/home/ddarulis/etaphi/MC/PWA/phi_eta_gg_2019_mc_kkin_2024_06_amptools_tree.root", "/work/halld/home/ddarulis/etaphi/MC/PWA/phi_eta_gg_2019_mc_kin_2024_06_amptools_tree.root", ["1pps","1p0s", "1pms", "1m0p", "3mpf", "3mp2f"], [True, False, False, False, False, False], "m_con")
@@ -729,7 +920,7 @@ if __name__ == "__main__":
     yaml_file = load_yaml(yaml_name)
     
     #result, generate_success = generate_amptools_cfg_from_dict(yaml_file)
-    cfgs = generate_vecps_cfg_yaml(yaml_file)
+    cfgs = generate_vecps_cfg_yaml(yaml_file, args.iotest, args.bin_root)
     print(cfgs[0])
     #if generate_success:
      #   with open(f"{yaml_file['base_directory']}/amptools.cfg", "w") as f:
