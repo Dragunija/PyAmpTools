@@ -449,7 +449,7 @@ def generate_amptools_cfg_from_dict(yaml_file):
 
     return result, generate_success
 
-def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, params, phase_constraint, fmt = "cartesian"):
+def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, params, phase_constraint, include_isowave, fmt = "cartesian"):
     phase_constrained_waves = {}
     phase_constrained_waves_mag = []
     if phase_constraint == "m_con":
@@ -472,7 +472,7 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
         phase_pars = {par for par in phase_constrained_waves.values()}
         phase_mag_pars = {par for par in phase_constrained_waves_mag.values()}
 
-    if phase_constraint == "l_con":
+    if phase_constraint == "lcon":
         phase_constrained_waves = {
             "1pps" : "1s_par",
             "1p0s": "1s_par",
@@ -544,6 +544,8 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
     sum_names = [reality + sign for reality in realities for sign in signs]
     reaction = f"{fit_name} Beam Proton Eta K+ K-"
     sums = [f"sum {fit_name} {temp}" for temp in sum_names]
+    if include_isowave:
+        sums.append(f"sum {fit_name} bkg")
     TEMstring = f"define TEMstring {reader_args}"
     gen_line = f"genmc {fit_name} {reader_type} {gen_file} {reader_args}"
     acc_line = f"accmc {fit_name} {reader_type} {acc_file} {reader_args}"
@@ -560,7 +562,7 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
         #print(wave)
         quantum_numbers = parse_wave_string(wave)
         for _sum in sum_names:
-            wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegSign") else ""
+            wave_real = "real" if real[i] is True else ""
             pars = f"{params[i]}" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
             reality = "+1" if "Re" in _sum else "-1"
             sign = "+1" if "PosSign" in _sum else "-1"
@@ -575,9 +577,17 @@ def generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader
             initialize = f"initialize {amplitude} {fmt} {pars} {wave_real}"
             #print(phasecon_ampl_decl)
             cfg += "\n".join([phasecon_ampl_decl, amplitude_decl, initialize, "\n"])
-            
-        constrain = "\n".join([f"constrain {fit_name} {sum_names[0]} {wave} {fit_name} {sum_names[2]} {wave}", f"constrain {fit_name} {sum_names[1]} {wave} {fit_name} {sum_names[3]} {wave}", "\n"])
+       
+        constrain = "\n".join([f"constrain {fit_name} {sum_names[0]} {wave} {fit_name} {sum_names[3]} {wave}", f"constrain {fit_name} {sum_names[1]} {wave} {fit_name} {sum_names[2]} {wave}", "\n"])
         cfg += constrain
+    
+    if include_isowave:
+        iso_wave = f"amplitude {fit_name}{sep}bkg{sep}isotropic Uniform"
+        initialize = f"initialize {fit_name}{sep}bkg{sep}isotropic {fmt} 0.0 0.0"
+        cfg += "\n".join([iso_wave,
+                          initialize,
+                          "\n"])
+    
     return cfg
 
 def generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, acc_file, gen_file, waves, real, wave_params, phase_constraint, bws, bw_widths, bound_mass, bound_width, plotting, fmt = "cartesian"):
@@ -603,7 +613,7 @@ def generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type,
         phase_pars = {par for par in phase_constrained_waves.values()}
         phase_mag_pars = {par for par in phase_constrained_waves_mag.values()}
 
-    if phase_constraint == "l_con":
+    if phase_constraint == "lcon":
         phase_constrained_waves = {
             "1pps" : "1s_par",
             "1p0s": "1s_par",
@@ -611,6 +621,21 @@ def generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type,
             "1mmp" : "1p_par",
             "1m0p" : "1p_par",
             "1mpp" : "1p_par",
+            "2pm2p" : "2p_par",
+            "2pmp" : "2p_par",
+            "2p0p" : "2p_par",
+            "2ppp" : "2p_par",
+            "2pp2p" : "2p_par",
+            "2mm2d" : "2d_par",
+            "2mmd" : "2d_par",
+            "2m0d" : "2d_par",
+            "2mpd" : "2d_par",
+            "2mp2d" : "2d_par",
+            "2mm2f" : "2f_par",
+            "2mmf" : "2f_par",
+            "2m0f" : "2f_par",
+            "2mpf" : "2f_par",
+            "2mp2f" : "2f_par",
             "3mm3f" : "3f_par",
             "3mm2f" : "3f_par", 
             "3mmf" : "3f_par",
@@ -691,10 +716,10 @@ def generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type,
         #print(wave)
         quantum_numbers = parse_wave_string(wave)
         for _sum in sum_names:
-            wave_real = "real" if real[i] is True and (_sum == "ImagNegSign" or _sum == "RealNegSign") else ""
+            wave_real = "real" if real[i] is True else ""
             reality = "+1" if "Re" in _sum else "-1"
             sign = "+1" if "PosSign" in _sum else "-1"
-            pars = f"{wave_params[i]}" if wave_real != "real" and wave not in phase_constrained_waves else "100 0"
+            pars = f"{wave_params[i]}"
             amplitude = f"{fit_name}{sep}{_sum}{sep}{wave}"
             phasecon_ampl_decl = ""
             if phase_constraint and wave in phase_constrained_waves:
@@ -770,7 +795,7 @@ def generate_vecps_cfg_yaml(yaml, iotest, bin_root):
     if iotest:
         cfg = generate_vecps_iotest_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, accmc_file, genmc_file, waves, real_waves["realset"], params, phase_constraint, bws["bw_set"], bw_widths["widths"], bound_mass, bound_width, do_plotting, wave_format)
     else:
-        cfg = generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, accmc_file, genmc_file, waves, real_waves["realset"], params, phase_constraint, wave_format)
+        cfg = generate_vecps_cfg(fit_name, reaction_name, help_header, reader_type, reader_args, data_file, accmc_file, genmc_file, waves, real_waves["realset"], params, phase_constraint, include_isowave, wave_format)
     cfgs.append(cfg)
     with open(f"{output_directory}/{fit_name}.cfg", 'w') as cfg_file:
         cfg_file.write(cfg)
@@ -791,14 +816,18 @@ def generate_vecps_cfg_yaml(yaml, iotest, bin_root):
                             "energy_min" : 3.0,
                             "energy_max" : 11.6,
 							"bin_root" : bin_root,
-                            "bootstrap" : False
+                            "bootstrap" : False,
+                            "fit_root_bins" : False,
+                            "root_bin_path" : "/volatile/halld/home/ddarulis/bins",
+                            "n_bootstrap" : 100
                         }))
         if do_fitting:
                 run_amptools.main(
                         SimpleNamespace(**{"bin_path" : f"{output_directory}/{fit_name}/bins.txt",
                             "fit_name" : fit_name,
                             "num_fits" : num_fits,
-                            "fit_path": "/work/halld/home/ddarulis/etaphi/results/",
+                            "farm" : False,
+                            "fit_path": "/volatile/halld/home/ddarulis/etaphi/results/",
                             "num_process" : 12}
                             )
                         )

@@ -171,6 +171,7 @@ def _cli_runFits():
     # # ############## REGISTER OBJECTS FOR AMPTOOLS ##############
     AmpToolsInterface.registerAmplitude(Zlm())
     AmpToolsInterface.registerAmplitude(Vec_ps_refl())
+    AmpToolsInterface.registerAmplitude(ComplexCoeff())
     AmpToolsInterface.registerAmplitude(OmegaDalitz())
     AmpToolsInterface.registerAmplitude(BreitWigner())
     AmpToolsInterface.registerAmplitude(Piecewise())

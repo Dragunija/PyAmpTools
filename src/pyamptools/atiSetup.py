@@ -106,6 +106,7 @@ def set_aliases(called_globals, USE_MPI, USE_GPU):
         "ConfigurationInfo": ROOT.ConfigurationInfo,
         "Zlm": ROOT.Zlm,
         "Vec_ps_refl": ROOT.Vec_ps_refl,
+        "ComplexCoeff": ROOT.ComplexCoeff,
         "OmegaDalitz": ROOT.OmegaDalitz,
         "BreitWigner": ROOT.BreitWigner,
         "Piecewise": ROOT.Piecewise,
